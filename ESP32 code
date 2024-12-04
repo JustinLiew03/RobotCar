@@ -1,0 +1,197 @@
+#include <BluetoothSerial.h>   // Include BluetoothSerial library
+#include <ESP32Servo.h>        // Include ESP32Servo library
+
+BluetoothSerial SerialBT;      // Create an object for Bluetooth serial communication
+
+// Define GPIO pins for motor control
+#define enA 12
+#define enB 14
+#define motorRightPin1  27
+#define motorRightPin2  26
+#define motorLeftPin1   25
+#define motorLeftPin2   33
+
+// Define GPIO pins for IR sensors
+#define irLeftPin   34
+#define irRightPin  35
+
+// Define GPIO pins for servos
+#define servo1Pin 18
+#define servo2Pin 17
+
+// Servo objects
+Servo servo1, servo2;
+
+// Servo angles
+int servo1Angle = 0;
+int servo2Angle = 0;
+
+// Manual or autonomous mode flag
+bool isManualMode = true;
+
+void setup() {
+  Serial.begin(115200);                // Initialize Serial Monitor
+  SerialBT.begin("ESP32_Robot");       // Initialize Bluetooth
+  Serial.println("Bluetooth Device is Ready to Connect");
+
+  // Initialize motor control pins
+  pinMode(motorRightPin1, OUTPUT);
+  pinMode(motorRightPin2, OUTPUT);
+  pinMode(motorLeftPin1, OUTPUT);
+  pinMode(motorLeftPin2, OUTPUT);
+  pinMode(enA, OUTPUT);
+  pinMode(enB, OUTPUT);
+
+  // Initialize IR sensor pins
+  pinMode(irLeftPin, INPUT);
+  pinMode(irRightPin, INPUT);
+
+  // Attach servos
+  servo1.attach(servo1Pin);
+  servo2.attach(servo2Pin);
+
+  // Initialize servos at 90 degrees
+  setServoAngle(servo1, servo1Angle);
+  setServoAngle(servo2, servo2Angle);
+}
+
+void loop() {
+  if (SerialBT.available()) {  // Check if Bluetooth data is available
+    int command = SerialBT.read();  // Read a single byte command
+    processCommand(command);
+  }
+
+  // Autonomous mode behavior
+  if (!isManualMode) {
+    handleAutonomousMode();
+  }
+}
+
+// Process Bluetooth commands
+void processCommand(int command) {
+  switch (command) {
+    case 10:  // Switch to autonomous mode
+      stopMotors();
+      isManualMode = false;
+      Serial.println("Switched to Autonomous Mode");
+      break;
+
+    case 11:  // Switch to manual mode
+      stopMotors();
+      analogWrite(enA,255);
+      analogWrite(enB,255);
+      delay(10);
+      isManualMode = true;
+      Serial.println("Switched to Manual Mode");
+      break;
+
+    case 1:  // Move forward
+      if (isManualMode) moveForward();
+      break;
+
+    case 2:  // Move backward
+      if (isManualMode) moveBackward();
+      break;
+
+    case 3:  // Turn left
+      if (isManualMode) turnLeft();
+      break;
+
+    case 4:  // Turn right
+      if (isManualMode) turnRight();
+      break;
+
+    case 0:  // Stop motors
+      if (isManualMode) stopMotors();
+      break;
+
+    case 21:  // Set Servo 1 Angle
+      if (isManualMode) setServoFromSerial(servo1);
+      break;
+
+    case 22:  // Set Servo 2 Angle
+      if (isManualMode) setServoFromSerial(servo2);
+      break;
+
+    default:
+      Serial.println("Invalid Command: " + String(command));
+      break;
+  }
+}
+
+// Handle autonomous mode
+void handleAutonomousMode() {
+  if (digitalRead(irLeftPin) == LOW && digitalRead(irRightPin) == LOW) {
+    analogWrite(enA,70);
+    analogWrite(enB,70);
+    delay(10); //Add this to make it able to analog write successfully
+    moveForward();
+  } else if (digitalRead(irLeftPin) == HIGH && digitalRead(irRightPin) == LOW) {
+    analogWrite(enA,255);
+    analogWrite(enB,255);
+    delay(10); //Add this to make it able to analog write successfully
+    turnRight();
+  } else if (digitalRead(irLeftPin) == LOW && digitalRead(irRightPin) == HIGH) {
+    analogWrite(enA,255);
+    analogWrite(enB,255);
+    delay(10); //Add this to make it able to analog write successfully
+    turnLeft();
+  } else {
+    stopMotors();
+  }
+}
+
+// Servo angle setting function
+void setServoFromSerial(Servo &servo) {
+  while (!SerialBT.available());  // Wait for angle data
+  int angle = SerialBT.read();   // Read the angle (0-180)
+  angle = constrain(angle, 0, 180);
+  servo.write(angle);
+  Serial.println("Servo angle set to: " + String(angle));
+}
+
+// Motor control functions
+void moveForward() {
+  digitalWrite(motorRightPin1, HIGH);
+  digitalWrite(motorRightPin2, LOW);
+  digitalWrite(motorLeftPin1, HIGH);
+  digitalWrite(motorLeftPin2, LOW);
+  Serial.println("Moving Forward");
+}
+
+void moveBackward() {
+  digitalWrite(motorRightPin1, LOW);
+  digitalWrite(motorRightPin2, HIGH);
+  digitalWrite(motorLeftPin1, LOW);
+  digitalWrite(motorLeftPin2, HIGH);
+  Serial.println("Moving Backward");
+}
+
+void turnLeft() {
+  digitalWrite(motorRightPin1, HIGH);
+  digitalWrite(motorRightPin2, LOW);
+  digitalWrite(motorLeftPin1, LOW);
+  digitalWrite(motorLeftPin2, HIGH);
+  Serial.println("Turning Left");
+}
+
+void turnRight() {
+  digitalWrite(motorRightPin1, LOW);
+  digitalWrite(motorRightPin2, HIGH);
+  digitalWrite(motorLeftPin1, HIGH);
+  digitalWrite(motorLeftPin2, LOW);
+  Serial.println("Turning Right");
+}
+
+void stopMotors() {
+  digitalWrite(motorRightPin1, LOW);
+  digitalWrite(motorRightPin2, LOW);
+  digitalWrite(motorLeftPin1, LOW);
+  digitalWrite(motorLeftPin2, LOW);
+}
+
+// Set servo angle
+void setServoAngle(Servo &servo, int angle) {
+  servo.write(angle);
+  delay(20);  // Wait for servo to reach the position
+}
