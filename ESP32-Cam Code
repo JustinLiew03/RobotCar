@@ -39,7 +39,7 @@
 // Enter your WiFi credentials
 // ===========================
 const char* ssid = "TempESP32";
-const char* password = "ESP123";
+const char* password = "ESP12345";
 
 void startCameraServer();
 void setupLedFlash(int pin);
